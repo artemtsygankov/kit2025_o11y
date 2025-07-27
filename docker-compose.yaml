@@ -1,0 +1,87 @@
+services:
+  database:
+    image: mariadb:11
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: o11y
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/local/bin/healthcheck.sh --connect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "3306:3306"
+
+  app:
+    image: hash-service:latest
+    build: ./app
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_NAME: o11y
+      DB_USER: app
+      DB_PASSWORD: app
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: always
+
+  loader:
+    image: loader:latest
+    build: ./loader
+    ports:
+      - "8501:8501"
+    depends_on:
+      - database
+      - app
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules/
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter
+    volumes:
+      - ./monitoring/mysqld_exporter/my.cnf:/.my.cnf:ro
+    ports:
+      - "9104:9104"
+    depends_on:
+      - database
+
+  alertmanager:
+    image: prom/alertmanager
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    ports:
+      - "9093:9093"
+
+volumes:
+  prometheus_data:
+  grafana_data:

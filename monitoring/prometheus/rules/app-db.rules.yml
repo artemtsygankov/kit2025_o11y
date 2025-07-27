@@ -1,0 +1,22 @@
+groups:
+  - name: app_alerts
+    rules:
+      - alert: HighAppLatencyP99
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[10s])) > 0.5
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "⚠️ Высокая задержка (p99 > 500ms)"
+          description: "В течение последних 10 секунд p99 задержка обработки запроса превышает 500 миллисекунд."
+
+  - name: db_alerts
+    rules:
+      - alert: HighDBRPS
+        expr: rate(mysql_global_status_queries[1m]) > 100
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "⚠️ Высокая нагрузка на базу данных (RPS > 100)"
+          description: "В течение последних 10 секунд количество запросов к базе данных превышает 100 RPS."
